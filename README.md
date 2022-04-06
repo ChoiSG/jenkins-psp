@@ -1,7 +1,7 @@
 # jenkins-psp
 PoC jenkins files for generating PowerSharpPack payloads
 
-For all inforamtion, refer to the Blog post: (LINK)
+Refer to the [blog post here](https://blog.sunggwanchoi.com/half-automating-powersharppack/)
 
 ## Components 
 ### Utility scripts 
@@ -23,6 +23,7 @@ For all inforamtion, refer to the Blog post: (LINK)
 
 ## Gotchas 
 - Remove `welcome()` banner from `chameleon`, causes character encoding error with Jenkins.
+- `psp-inviscloak.groovy` - If compilation fails because of invisibilitycloak, use the no-string option (remove `-m <obs>` option)
 - Turn off defender!
 
 ## Credits 
