@@ -15,7 +15,7 @@ pipeline {
         BRANCH = "master"
         WORKDIR = "C:\\opt\\jenkins-psp"
 
-        PSP_OUTPUT = "${WORKDIR}\\Invoke-${TOOLNAME}.ps1"
+        PSP_OUTPUT = "${WORKDIR}\\Invoke-${TOOLNAME}-${params.ProjectID}.ps1"
         OBS_PSP_OUTPUT = "${WORKDIR}\\Obs-Invoke-${TOOLNAME}-${params.ProjectID}.ps1"
 
         // << CHANGE THESE >> - .NET Compile configs

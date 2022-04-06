@@ -3,8 +3,8 @@ pipeline {
     
     environment { 
         // << CHANGE THESE >> 
-        TOOLNAME = "Rubeus"
-        GITURL = "https://github.com/GhostPack/Rubeus.git"
+        TOOLNAME = "Seatbelt"
+        GITURL = "https://github.com/GhostPack/Seatbelt.git"
         BRANCH = "master"
         WORKDIR = "C:\\opt\\jenkins-psp"
 
@@ -14,8 +14,8 @@ pipeline {
         // << CHANGE THESE >> - .NET Compile configs
         CONFIG="Release"
         PLATFORM="Any CPU"
-        DOTNETVERSION="v4.0"
-        DOTNETNUMBER="net40"    // net35, net40, net452, net462, net5
+        DOTNETVERSION="v3.5"
+        DOTNETNUMBER="net35"    // net35, net40, net452, net462, net5
         
         // 3rd party tools 
         CHAMELEONPATH = "${WORKDIR}\\chameleon\\chameleon.py"
