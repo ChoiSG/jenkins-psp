@@ -1,0 +1,6 @@
+[submodule "chameleon"]
+	path = chameleon
+	url = https://github.com/klezVirus/chameleon
+[submodule "InvisibilityCloak"]
+	path = InvisibilityCloak
+	url = https://github.com/h4wkst3r/InvisibilityCloak
