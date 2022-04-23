@@ -115,7 +115,7 @@ pipeline {
                     def exePath = powershell(returnStdout: true, script: """
                     \$exeFiles = (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release' -and \$_.DirectoryName -match 'bin' } ).FullName
                     if (\$exeFiles -match "${DOTNETNUMBER}"){
-                        \$exeFiles -match "${DOTNETNUMBER}"
+                        \$exeFiles.trim()
                     }
                     else{
                         (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release'} )[0].FullName
@@ -159,7 +159,7 @@ pipeline {
                         exePath = powershell(returnStdout: true, script: """
                             \$exeFiles = (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release' -and \$_.DirectoryName -match 'bin' } ).FullName
                             if (\$exeFiles -match "${DOTNETNUMBER}"){
-                                \$exeFiles -match "${DOTNETNUMBER}"
+                                \$exeFiles.trim()
                             }
                             else{
                                 (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release'} )[0].FullName
