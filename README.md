@@ -3,13 +3,9 @@ PoC jenkins files for generating PowerSharpPack payloads
 
 Refer to the [blog post here](https://blog.sunggwanchoi.com/half-automating-powersharppack/)
 
-## Components 
-### Utility scripts 
-- confuserEx.ps1: Creates confuserEx project (.crproj) file that `confuserex.cli.exe` will use. 
-- embedDotNet.ps1: Embed .NET assembly into the `template.ps1` PSP payload template. 
-- PSPprep.ps1: Change .NET tool's source code to set `public` for classes and the `main()` method. 
+![](jenkins-seatbelt.gif)
 
-- template.ps1: A PSP payload template. .NET assembly will get embedded here. 
+## Components 
 
 ### Jenkins - Main 
 - psp-confuser.groovy: Jenkins pipeline that uses ConfuserEx for obfuscation. 
@@ -20,6 +16,13 @@ Refer to the [blog post here](https://blog.sunggwanchoi.com/half-automating-powe
 - meta-example.groovy: Meta job that invokes `meta-Certify.groovy` and `meta-Rubeus.groovy`. 
 - meta-Certify.groovy: Jenkins pipeline that creates Certify PSP payload. 
 - meta-Rubeus.groovy: Jenkins pipeline that creates Rubeus PSP payload. 
+
+### Utility scripts 
+- confuserEx.ps1: Creates confuserEx project (.crproj) file that `confuserex.cli.exe` will use. 
+- embedDotNet.ps1: Embed .NET assembly into the `template.ps1` PSP payload template. 
+- PSPprep.ps1: Change .NET tool's source code to set `public` for classes and the `main()` method. 
+- template.ps1: A PSP payload template. .NET assembly will get embedded here. 
+
 
 ## Gotchas 
 - Remove `welcome()` banner from `chameleon`, causes character encoding error with Jenkins.
