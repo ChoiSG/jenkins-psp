@@ -8,8 +8,10 @@ Refer to the [blog post here](https://blog.sunggwanchoi.com/half-automating-powe
 ## Components 
 
 ### Jenkins - Main 
-- psp-confuser.groovy: Jenkins pipeline that uses ConfuserEx for obfuscation. 
-- psp-inviscloak.groovy: Jenkins pipeline that uses InvisiblityCloak for obfuscation. 
+- psp-confuser.groovy: Jenkins pipeline that uses ConfuserEx for obfuscation. Creates PSP payload. 
+- psp-inviscloak.groovy: Jenkins pipeline that uses InvisiblityCloak for obfuscation. Creates PSP payload.
+- psp-invis-confuser.groovy: Jenkins pipeline that uses InvisibilityCloak + ConfuserEx. Creates PSP payload.
+- assembly-invis-confuser.goorvy: Jenkins pipeline that uses InvisibilityCloak + ConfuserEx and only creates .NET assembly. 
 - test-jenkins.groovy: A simple sanity check jenkins pipeline.
 
 ### Jenkins - Meta 
@@ -23,6 +25,15 @@ Refer to the [blog post here](https://blog.sunggwanchoi.com/half-automating-powe
 - PSPprep.ps1: Change .NET tool's source code to set `public` for classes and the `main()` method. 
 - template.ps1: A PSP payload template. .NET assembly will get embedded here. 
 
+### Examples 
+- Bunch of pipeline examples for popular projects 
+    - Certify 
+    - Rubeus 
+    - SharpHound 
+    - SharpUp
+    - SharpView
+    - Standin 
+    - SharpDPAPI 
 
 ## Gotchas 
 - Remove `welcome()` banner from `chameleon`, causes character encoding error with Jenkins.

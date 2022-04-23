@@ -75,7 +75,7 @@ pipeline {
             }
         }
 
-        // Try msbuild, then dotnet (for net5.0++). TODO: Find dotnet build params for pdb removal and release.
+        // Try msbuild, then dotnet (for net5.0++). TODO: Find dotnet build --configuration ${CONFIG} params for pdb removal and release.
         stage('Compile'){ 
             steps {
                 script{ 
@@ -84,7 +84,7 @@ pipeline {
                     }   
                     catch(Exception e){
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                            bat """dotnet build ${SLNPATH} """ 
+                            bat """dotnet build --configuration ${CONFIG} ${SLNPATH} """ 
                         }
                     }      
                 }

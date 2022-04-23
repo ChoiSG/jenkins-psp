@@ -97,7 +97,7 @@ pipeline {
                     }   
                     catch(Exception e){
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                            bat """dotnet build ${SLNPATH} """ 
+                            bat """dotnet build --configuration ${CONFIG} ${SLNPATH} """ 
                         }
                     }  
                 }
