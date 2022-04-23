@@ -1,23 +1,29 @@
+
+// Commenting out invisibilitycloak as it messes up directory name - ex) \standin-both-net45\StandOut\StandIn\hStandOut.cs
+// Can fix with source code change with invisibilitycloak, but don't want to mess up submodule
+
 pipeline { 
     agent any
     
     environment { 
         // << CHANGE THESE >> 
-        TOOLNAME = "Seatbelt"
-        GITURL = "https://github.com/GhostPack/Seatbelt.git"
-        BRANCH = "master"
-        WORKDIR = "C:\\opt\\jenkins-psp"
-
-        PSP_OUTPUT = "${WORKDIR}\\Invoke-${TOOLNAME}.ps1"
-        OBS_PSP_OUTPUT = "${WORKDIR}\\Obs-Invoke-${TOOLNAME}.ps1"
+        TOOLNAME = "StandIn"
+        OBS_TOOLNAME = "StandIn"
+        GITURL = "https://github.com/FuzzySecurity/StandIn.git"
+        BRANCH = "main"
+        WORKDIR = "C:\\opt\\jenkins-psp"           // git-cloned directory 
+        
+        PSP_OUTPUT = "${WORKDIR}\\output\\Invoke-${OBS_TOOLNAME}.ps1"
+        OBS_PSP_OUTPUT = "${WORKDIR}\\output\\Obs-Invoke-${OBS_TOOLNAME}.ps1"
 
         // << CHANGE THESE >> - .NET Compile configs
         CONFIG="Release"
         PLATFORM="Any CPU"
-        DOTNETVERSION="v3.5"
-        DOTNETNUMBER="net35"    // net35, net40, net452, net462, net5
+        DOTNETVERSION="v4.5"
+        DOTNETNUMBER="net45"
         
         // 3rd party tools 
+        INVISCLOAKPATH = "${WORKDIR}\\InvisibilityCloak\\InvisibilityCloak.py"
         CHAMELEONPATH = "${WORKDIR}\\chameleon\\chameleon.py"
         EMBEDDOTNETPATH = "${WORKDIR}\\embedDotNet.ps1"
         PREPPSPPATH = "${WORKDIR}\\PSPprep.ps1"
@@ -36,6 +42,7 @@ pipeline {
             }
         }
 
+        // Try main, then master for old github repos.
         stage('Git-Clone'){
             steps{
                 script {     
@@ -55,12 +62,19 @@ pipeline {
             }
         }
 
-        // Try nuget, then dotnet (for net5.0++)
+        // Obfuscate with invisibilitycloak. 
+        // stage('InvisibilityCloak-Obfuscate') { 
+        //     steps { 
+        //         bat """python ${INVISCLOAKPATH} -d ${WORKSPACE} -n ${OBS_TOOLNAME} -m rot13 """
+        //     }
+        // }
+
+        // Some projects doesn't need nuget restore. Continue on failure.
         // TODO: what's this "msbuild PROJECT.sln /t:Restore /p:Configuration=Release"
         stage('Nuget-Restore'){
             steps{
                 script{
-                    def slnPath = powershell(returnStdout: true, script: "(Get-ChildItem -Path ${WORKSPACE} -Include '${TOOLNAME}.sln' -Recurse).FullName")
+                    def slnPath = powershell(returnStdout: true, script: "(Get-ChildItem -Path ${WORKSPACE} -Include '${OBS_TOOLNAME}.sln' -Recurse).FullName")
                     env.SLNPATH = slnPath
                     
                     try{ 
@@ -75,23 +89,26 @@ pipeline {
             }
         }
 
-        // Try msbuild, then dotnet (for net5.0++). TODO: Find dotnet build params for pdb removal and release.
+        // If Compilation fails due to invisiblity cloak, run without string obfuscation (delete -m rot 13)
         stage('Compile'){ 
             steps {
-                script{ 
+                script{
+                    def slnPath = powershell(returnStdout: true, script: "(Get-ChildItem -Path ${WORKSPACE} -Include '${OBS_TOOLNAME}.sln' -Recurse).FullName.trim()").trim()
+                    env.SLNPATH = slnPath.trim()
+                    
                     try{
                         bat "\"${tool 'MSBuild_VS2019'}\\MSBuild.exe\" /p:Configuration=${CONFIG} \"/p:Platform=${PLATFORM}\" /maxcpucount:%NUMBER_OF_PROCESSORS% /nodeReuse:false /p:DebugType=None /p:DebugSymbols=false /p:TargetFrameworkMoniker=\".NETFramework,Version=${DOTNETVERSION}\" ${SLNPATH}" 
                     }   
                     catch(Exception e){
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                            bat """dotnet build ${SLNPATH} """ 
+                            bat """dotnet build ${SLNPATH} -p:Configuration=${CONFIG}""" 
                         }
-                    }      
+                    }  
                 }
             }
         }
 
-       // ConfuserEx only when it's not net5.0++. Only execute this stage when the dotnet version contains "v" ex. v3.5
+        // ConfuserEx only when it's not net5.0++. Only execute this stage when the dotnet version contains "v" ex. v3.5
         stage('ConfuserEx'){
             when {
                 expression { env.DOTNETVERSION.contains('v')} 
@@ -101,14 +118,14 @@ pipeline {
                     // Some projects have net45/net35, some projects doesn't. So many one-offs        
                     def exePath = powershell(returnStdout: true, script: """
                     \$exeFiles = (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release' -and \$_.DirectoryName -match 'bin' } ).FullName
-                    if (\$exeFiles -match "${DOTNETNUMBER}"){
-                        \$exeFiles.trim()
+                    if (\$exeFiles -match "${DOTNETNUMBER}" | out-null){
+                        \$exeFiles | where-object {\$_ -match "${DOTNETNUMBER}"} 
                     }
                     else{
                         (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release'} )[0].FullName
                     }
                     """)
-                    env.EXEPATH = exePath
+                    env.EXEPATH = exePath.trim()
 
                     // Continue on failure. 
                     catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE'){
@@ -124,10 +141,10 @@ pipeline {
                         """)
 
                         // Generate confuserEx project file using `confuserEx.ps1` script 
-                        powershell(returnStdout:true, script:"${CONFUSERPREP} -exePath \"${EXEPATH}\".trim() -outDir ${WORKSPACE}\\Confused -level normal -toolName ${TOOLNAME} ")
+                        powershell(returnStdout:true, script:"${CONFUSERPREP} -exePath \"${EXEPATH}\".trim() -outDir ${WORKSPACE}\\Confused -level normal -toolName ${OBS_TOOLNAME} ")
 
                         // Run confuserEx with the project file generated above
-                        bat "Confuser.CLI.exe ${WORKSPACE}\\Confused\\${TOOLNAME}.crproj"
+                        bat "Confuser.CLI.exe ${WORKSPACE}\\Confused\\${OBS_TOOLNAME}.crproj"
 
                         echo "[!] ConfuserEx failed. Skipping Obfuscation."
                     }
@@ -145,8 +162,8 @@ pipeline {
                     if (env.EXEPATH == ''){
                         exePath = powershell(returnStdout: true, script: """
                             \$exeFiles = (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release' -and \$_.DirectoryName -match 'bin' } ).FullName
-                            if (\$exeFiles -match "${DOTNETNUMBER}"){
-                                \$exeFiles.trim()
+                            if (\$exeFiles -match "${DOTNETNUMBER}" | out-null){
+                                \$exeFiles | where-object {\$_ -match "${DOTNETNUMBER}"} 
                             }
                             else{
                                 (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release'} )[0].FullName
@@ -156,7 +173,7 @@ pipeline {
                     }
 
                     // Beaware of environment variable created from ps in jenkins (exePath). Always .trim() INSIDE powershell.
-                    powershell "${EMBEDDOTNETPATH} -inputFile \"${EXEPATH}\".trim() -outputFile ${PSP_OUTPUT} -templatePath ${TEMPLATEPATH} -toolName ${TOOLNAME}"
+                    powershell "${EMBEDDOTNETPATH} -inputFile \"${EXEPATH}\".trim() -outputFile ${PSP_OUTPUT} -templatePath ${TEMPLATEPATH} -toolName ${OBS_TOOLNAME}"
                 }
             }
         }

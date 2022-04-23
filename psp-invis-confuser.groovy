@@ -24,6 +24,7 @@ pipeline {
         EMBEDDOTNETPATH = "${WORKDIR}\\embedDotNet.ps1"
         PREPPSPPATH = "${WORKDIR}\\PSPprep.ps1"
         TEMPLATEPATH = "${WORKDIR}\\template.ps1"
+        CONFUSERPREP = "${WORKDIR}\\confuserEx.ps1"
     }
 
     
@@ -103,9 +104,14 @@ pipeline {
             }
         }
 
-        stage('Create-PSP'){
+        // ConfuserEx only when it's not net5.0++. Only execute this stage when the dotnet version contains "v" ex. v3.5
+        stage('ConfuserEx'){
+            when {
+                expression { env.DOTNETVERSION.contains('v')} 
+            }
             steps{
-                script{
+                script{ 
+                    // Some projects have net45/net35, some projects doesn't. So many one-offs        
                     def exePath = powershell(returnStdout: true, script: """
                     \$exeFiles = (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release' -and \$_.DirectoryName -match 'bin' } ).FullName
                     if (\$exeFiles -match "${DOTNETNUMBER}"){
@@ -117,12 +123,56 @@ pipeline {
                     """)
                     env.EXEPATH = exePath
 
+                    // Continue on failure. 
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE'){
+                        // Copy all dependency dlls to the same dir as the EXE file 
+                        powershell(returnStdout:true, script: """
+                            \$dllFiles = (Get-ChildItem -Path ${WORKSPACE} -Include '*.dll' -Recurse).FullName
+                            if (\$dllFiles -match "${DOTNETNUMBER}"){
+                                \$dllFiles -match "${DOTNETNUMBER}" | copy-item -destination (split-path \"${EXEPATH}\".trim() -Resolve)
+                            }
+                            else{
+                                \$dllFiles | copy-item -destination (split-path \"${EXEPATH}\".trim() -Resolve)
+                            }
+                        """)
+
+                        // Generate confuserEx project file using `confuserEx.ps1` script 
+                        powershell(returnStdout:true, script:"${CONFUSERPREP} -exePath \"${EXEPATH}\".trim() -outDir ${WORKSPACE}\\Confused -level normal -toolName ${OBS_TOOLNAME} ")
+
+                        // Run confuserEx with the project file generated above
+                        bat "Confuser.CLI.exe ${WORKSPACE}\\Confused\\${OBS_TOOLNAME}.crproj"
+
+                        echo "[!] ConfuserEx failed. Skipping Obfuscation."
+                    }
+                }
+            }
+        }
+
+        stage('Create-PSP'){
+            steps{
+                script{
+                    def exePath = powershell(returnStdout: true, script: "(Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'Confused'} ).FullName")
+                    env.EXEPATH = exePath
+                    
+                    // If confuserEx failed, just use the regular bin.
+                    if (env.EXEPATH == ''){
+                        exePath = powershell(returnStdout: true, script: """
+                            \$exeFiles = (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release' -and \$_.DirectoryName -match 'bin' } ).FullName
+                            if (\$exeFiles -match "${DOTNETNUMBER}"){
+                                \$exeFiles.trim()
+                            }
+                            else{
+                                (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release'} )[0].FullName
+                            }
+                            """)
+                        env.EXEPATH = exePath
+                    }
+
                     // Beaware of environment variable created from ps in jenkins (exePath). Always .trim() INSIDE powershell.
                     powershell "${EMBEDDOTNETPATH} -inputFile \"${EXEPATH}\".trim() -outputFile ${PSP_OUTPUT} -templatePath ${TEMPLATEPATH} -toolName ${OBS_TOOLNAME}"
                 }
             }
         }
-
 
         stage('Obfuscate-PSP'){
             steps{

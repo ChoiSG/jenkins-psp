@@ -4,13 +4,14 @@ pipeline {
     environment { 
         // << CHANGE THESE >> 
         TOOLNAME = "Rubeus"
-        OBS_TOOLNAME = "Dudebeus"
+        OBS_TOOLNAME = "Roobaus"
         GITURL = "https://github.com/GhostPack/Rubeus.git"
         BRANCH = "master"
         WORKDIR = "C:\\opt\\jenkins-psp"           // git-cloned directory 
         
-        PSP_OUTPUT = "${WORKDIR}\\Invoke-${OBS_TOOLNAME}.ps1"
-        OBS_PSP_OUTPUT = "${WORKDIR}\\Obs-Invoke-${OBS_TOOLNAME}.ps1"
+        PSP_OUTPUT = "${WORKDIR}\\output\\Invoke-${OBS_TOOLNAME}.ps1"
+        OBS_PSP_OUTPUT = "${WORKDIR}\\output\\Obs-Invoke-${OBS_TOOLNAME}.ps1"
+        ASSEMBLY_OUTPUT = "${WORKDIR}\\output\\${OBS_TOOLNAME}.exe"
 
         // << CHANGE THESE >> - .NET Compile configs
         CONFIG="Release"
@@ -24,6 +25,7 @@ pipeline {
         EMBEDDOTNETPATH = "${WORKDIR}\\embedDotNet.ps1"
         PREPPSPPATH = "${WORKDIR}\\PSPprep.ps1"
         TEMPLATEPATH = "${WORKDIR}\\template.ps1"
+        CONFUSERPREP = "${WORKDIR}\\confuserEx.ps1"
     }
 
     
@@ -47,13 +49,6 @@ pipeline {
                         userRemoteConfigs: [[url: "${GITURL}"]]
                     ]) 
                 }
-            }
-        }
-
-        // Skip prep powersharppack if the tool already has public class/main function.
-        stage('Prep-PSP'){
-            steps{
-                powershell "${PREPPSPPATH} -inputDir ${WORKSPACE} -toolName ${TOOLNAME}"
             }
         }
 
@@ -103,9 +98,14 @@ pipeline {
             }
         }
 
-        stage('Create-PSP'){
+        // ConfuserEx only when it's not net5.0++. Only execute this stage when the dotnet version contains "v" ex. v3.5
+        stage('ConfuserEx'){
+            when {
+                expression { env.DOTNETVERSION.contains('v')} 
+            }
             steps{
-                script{
+                script{ 
+                    // Some projects have net45/net35, some projects doesn't. So many one-offs        
                     def exePath = powershell(returnStdout: true, script: """
                     \$exeFiles = (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release' -and \$_.DirectoryName -match 'bin' } ).FullName
                     if (\$exeFiles -match "${DOTNETNUMBER}"){
@@ -117,16 +117,54 @@ pipeline {
                     """)
                     env.EXEPATH = exePath
 
-                    // Beaware of environment variable created from ps in jenkins (exePath). Always .trim() INSIDE powershell.
-                    powershell "${EMBEDDOTNETPATH} -inputFile \"${EXEPATH}\".trim() -outputFile ${PSP_OUTPUT} -templatePath ${TEMPLATEPATH} -toolName ${OBS_TOOLNAME}"
+                    // Continue on failure. 
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE'){
+                        // Copy all dependency dlls to the same dir as the EXE file 
+                        powershell(returnStdout:true, script: """
+                            \$dllFiles = (Get-ChildItem -Path ${WORKSPACE} -Include '*.dll' -Recurse).FullName
+                            if (\$dllFiles -match "${DOTNETNUMBER}"){
+                                \$dllFiles -match "${DOTNETNUMBER}" | copy-item -destination (split-path \"${EXEPATH}\".trim() -Resolve)
+                            }
+                            else{
+                                \$dllFiles | copy-item -destination (split-path \"${EXEPATH}\".trim() -Resolve)
+                            }
+                        """)
+
+                        // Generate confuserEx project file using `confuserEx.ps1` script 
+                        powershell(returnStdout:true, script:"${CONFUSERPREP} -exePath \"${EXEPATH}\".trim() -outDir ${WORKSPACE}\\Confused -level normal -toolName ${OBS_TOOLNAME} ")
+
+                        // Run confuserEx with the project file generated above
+                        bat "Confuser.CLI.exe ${WORKSPACE}\\Confused\\${OBS_TOOLNAME}.crproj"
+
+                        echo "[!] ConfuserEx failed. Skipping Obfuscation."
+                    }
                 }
             }
         }
 
-
-        stage('Obfuscate-PSP'){
+        stage('Move-Assembly'){
             steps{
-                bat encoding: 'UTF-8', script: """python ${CHAMELEONPATH} -v -d -c -f -r -i -l 4 ${PSP_OUTPUT} -o ${OBS_PSP_OUTPUT}"""
+                script{
+                    def exePath = powershell(returnStdout: true, script: "(Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'Confused'} ).FullName")
+                    env.EXEPATH = exePath
+                    
+                    // If confuserEx failed, just use the regular bin.
+                    if (env.EXEPATH == ''){
+                        exePath = powershell(returnStdout: true, script: """
+                            \$exeFiles = (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release' -and \$_.DirectoryName -match 'bin' } ).FullName
+                            if (\$exeFiles -match "${DOTNETNUMBER}"){
+                                \$exeFiles.trim()
+                            }
+                            else{
+                                (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release'} )[0].FullName
+                            }
+                            """)
+                        env.EXEPATH = exePath
+                    }
+
+                    // Beaware of environment variable created from ps in jenkins (exePath). Always .trim() INSIDE powershell.
+                    powershell "mv \"${EXEPATH}\".trim() ${ASSEMBLY_OUTPUT}"
+                }
             }
         }
     }
