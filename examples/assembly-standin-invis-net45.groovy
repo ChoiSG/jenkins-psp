@@ -3,20 +3,21 @@ pipeline {
     
     environment { 
         // << CHANGE THESE >> 
-        TOOLNAME = "Certify"
-        OBS_TOOLNAME = "Coortify"
-        GITURL = "https://github.com/GhostPack/Certify.git"
+        TOOLNAME = "StandIn"
+        OBS_TOOLNAME = "StandIn"
+        GITURL = "https://github.com/FuzzySecurity/StandIn.git"
         BRANCH = "main"
         WORKDIR = "C:\\opt\\jenkins-psp"           // git-cloned directory 
         
         PSP_OUTPUT = "${WORKDIR}\\output\\Invoke-${OBS_TOOLNAME}.ps1"
         OBS_PSP_OUTPUT = "${WORKDIR}\\output\\Obs-Invoke-${OBS_TOOLNAME}.ps1"
+        ASSEMBLY_OUTPUT = "${WORKDIR}\\output\\${OBS_TOOLNAME}.exe"
 
         // << CHANGE THESE >> - .NET Compile configs
         CONFIG="Release"
         PLATFORM="Any CPU"
-        DOTNETVERSION="v4.0"
-        DOTNETNUMBER="net40"
+        DOTNETVERSION="v4.5"
+        DOTNETNUMBER="net45"
         
         // 3rd party tools 
         INVISCLOAKPATH = "${WORKDIR}\\InvisibilityCloak\\InvisibilityCloak.py"
@@ -51,19 +52,12 @@ pipeline {
             }
         }
 
-        // Skip prep powersharppack if the tool already has public class/main function.
-        stage('Prep-PSP'){
-            steps{
-                powershell "${PREPPSPPATH} -inputDir ${WORKSPACE} -toolName ${TOOLNAME}"
-            }
-        }
-
         // Obfuscate with invisibilitycloak. 
-        stage('InvisibilityCloak-Obfuscate') { 
-            steps { 
-                bat """python ${INVISCLOAKPATH} -d ${WORKSPACE} -n ${OBS_TOOLNAME} -m rot13 """
-            }
-        }
+        // # stage('InvisibilityCloak-Obfuscate') { 
+        // #     steps { 
+        // #         bat """python ${INVISCLOAKPATH} -d ${WORKSPACE} -n ${OBS_TOOLNAME} -m rot13 """
+        // #     }
+        // # }
 
         // Some projects doesn't need nuget restore. Continue on failure.
         // TODO: what's this "msbuild PROJECT.sln /t:Restore /p:Configuration=Release"
@@ -115,7 +109,7 @@ pipeline {
                     def exePath = powershell(returnStdout: true, script: """
                     \$exeFiles = (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release' -and \$_.DirectoryName -match 'bin' } ).FullName
                     if (\$exeFiles -match "${DOTNETNUMBER}"){
-                        \$exeFiles -match "${DOTNETNUMBER}"
+                        \$exeFiles.trim()
                     }
                     else{
                         (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release'} )[0].FullName
@@ -148,7 +142,7 @@ pipeline {
             }
         }
 
-        stage('Create-PSP'){
+        stage('Move-Assembly'){
             steps{
                 script{
                     def exePath = powershell(returnStdout: true, script: "(Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'Confused'} ).FullName")
@@ -159,7 +153,7 @@ pipeline {
                         exePath = powershell(returnStdout: true, script: """
                             \$exeFiles = (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release' -and \$_.DirectoryName -match 'bin' } ).FullName
                             if (\$exeFiles -match "${DOTNETNUMBER}"){
-                                \$exeFiles -match "${DOTNETNUMBER}"
+                                \$exeFiles.trim()
                             }
                             else{
                                 (Get-ChildItem -Path ${WORKSPACE} -Include '*.exe' -Recurse | Where-Object {\$_.DirectoryName -match 'release'} )[0].FullName
@@ -169,14 +163,8 @@ pipeline {
                     }
 
                     // Beaware of environment variable created from ps in jenkins (exePath). Always .trim() INSIDE powershell.
-                    powershell "${EMBEDDOTNETPATH} -inputFile \"${EXEPATH}\".trim() -outputFile ${PSP_OUTPUT} -templatePath ${TEMPLATEPATH} -toolName ${OBS_TOOLNAME}"
+                    powershell "mv \"${EXEPATH}\".trim() ${ASSEMBLY_OUTPUT}"
                 }
-            }
-        }
-
-        stage('Obfuscate-PSP'){
-            steps{
-                bat encoding: 'UTF-8', script: """python ${CHAMELEONPATH} -v -d -c -f -r -i -l 4 ${PSP_OUTPUT} -o ${OBS_PSP_OUTPUT}"""
             }
         }
     }

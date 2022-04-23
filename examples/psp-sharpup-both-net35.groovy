@@ -61,7 +61,7 @@ pipeline {
         // Obfuscate with invisibilitycloak. 
         stage('InvisibilityCloak-Obfuscate') { 
             steps { 
-                bat """python ${INVISCLOAKPATH} -d ${WORKSPACE} -n ${OBS_TOOLNAME} -m rot13 """
+                bat """python ${INVISCLOAKPATH} -d ${WORKSPACE} -n ${OBS_TOOLNAME} -m base64 """
             }
         }
 
