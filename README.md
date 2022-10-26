@@ -1,3 +1,8 @@
+
+# DEPRECATED. Use Offensive-Jenkins instead. PUBLIC WHEN IDK
+
+---
+
 # jenkins-psp
 PoC jenkins files for generating PowerSharpPack payloads
 
